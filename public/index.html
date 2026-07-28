@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Radical Commons — shared AI compute</title>
+<style>
+  :root { --red:#FF2D55; --bg:#0B0B09; --fg:#F5F3EE; --dim:#8A867C; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg);
+    font-family:"IBM Plex Mono",ui-monospace,monospace; line-height:1.5;
+    display:flex; min-height:100vh; align-items:center; justify-content:center; padding:24px; }
+  main { max-width:680px; width:100%; }
+  h1 { font-family:"Syne",system-ui,sans-serif; font-weight:800; font-size:clamp(32px,7vw,56px);
+    margin:0 0 4px; letter-spacing:-.02em; }
+  h1 .r { color:var(--red); }
+  .tag { color:var(--dim); margin:0 0 32px; }
+  .counter { border:1px solid #24221d; border-radius:14px; padding:22px 24px; background:#100f0c; }
+  .counter .n { font-family:"Syne",sans-serif; font-weight:800; font-size:clamp(28px,6vw,44px);
+    color:var(--red); font-variant-numeric:tabular-nums; }
+  .counter .l { color:var(--dim); font-size:13px; text-transform:uppercase; letter-spacing:.08em; }
+  .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-top:12px; }
+  .cell { border:1px solid #24221d; border-radius:12px; padding:14px 16px; background:#100f0c; }
+  .cell .n { font-size:22px; font-weight:700; font-variant-numeric:tabular-nums; }
+  .cell .l { color:var(--dim); font-size:11px; text-transform:uppercase; letter-spacing:.08em; }
+  code { background:#1a1813; padding:2px 6px; border-radius:5px; color:#e7c46b; }
+  pre { background:#100f0c; border:1px solid #24221d; border-radius:12px; padding:16px;
+    overflow:auto; font-size:12.5px; color:#cfcabb; }
+  a { color:var(--red); }
+  .foot { color:var(--dim); font-size:12px; margin-top:28px; }
+  @media(max-width:520px){ .grid{grid-template-columns:1fr 1fr;} }
+</style>
+</head>
+<body>
+<main>
+  <h1><span class="r">Radical</span> Commons</h1>
+  <p class="tag">Donated tokens &amp; split-model GPU pools behind one endpoint. Compute, shared.</p>
+
+  <div class="counter">
+    <div class="n" id="remaining">—</div>
+    <div class="l">tokens remaining across all donors</div>
+  </div>
+  <div class="grid">
+    <div class="cell"><div class="n" id="healthy">—</div><div class="l">live pools</div></div>
+    <div class="cell"><div class="n" id="requests">—</div><div class="l">requests served</div></div>
+    <div class="cell"><div class="n" id="used">—</div><div class="l">tokens spent</div></div>
+  </div>
+
+  <h3 style="margin-top:32px">Use it</h3>
+  <pre>curl https://commons.theradicalparty.com/v1/chat/completions \
+  -H "content-type: application/json" \
+  -d '{"model":"deepseek-chat","messages":[{"role":"user","content":"hi"}]}'</pre>
+
+  <h3>Donate compute</h3>
+  <p style="color:var(--dim)">Contribute an API key + budget, or point a self-hosted split-model pool
+  (<code>exo</code> / <code>mesh-llm</code> / <code>ollama</code>) at us:</p>
+  <pre>curl https://commons.theradicalparty.com/donate \
+  -H "content-type: application/json" \
+  -d '{"name":"my-4090","kind":"endpoint",
+       "base_url":"https://my-node.example/v1",
+       "models":["qwen3","deepseek-chat"],"tokens":5000000}'</pre>
+
+  <p class="foot">OpenAI-compatible · weighted round-robin cascade · <span id="dot">◉</span> auto-refresh</p>
+</main>
+<script>
+const fmt = (n) => n>=1e9?(n/1e9).toFixed(2)+"B":n>=1e6?(n/1e6).toFixed(2)+"M":n>=1e3?(n/1e3).toFixed(1)+"k":String(n|0);
+async function tick(){
+  try{
+    const s = await (await fetch("/stats",{cache:"no-store"})).json();
+    remaining.textContent = fmt(s.tokens_remaining);
+    healthy.textContent = s.healthy + "/" + s.pools;
+    requests.textContent = fmt(s.requests);
+    used.textContent = fmt(s.tokens_used);
+  }catch(e){}
+}
+tick(); setInterval(tick, 5000);
+</script>
+</body>
+</html>

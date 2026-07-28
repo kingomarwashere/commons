@@ -33,6 +33,23 @@ app.post("/v1/chat/completions", async (c) => {
     if (!pool) break;
     tried.push(pool.id);
 
+    // Built-in "house" donor backed by the Worker's Workers AI binding — no HTTP hop.
+    if (pool.base_url === "workers-ai://local") {
+      try {
+        const r = await c.env.AI.run(model, {
+          messages: body.messages, max_tokens: body.max_tokens ?? 512,
+        });
+        const content = r?.response ?? "";
+        const used = (r?.usage?.total_tokens) || estimateTokens(body.messages, content);
+        c.executionCtx.waitUntil(stub.recordUsage(pool.id, used, true));
+        return houseResponse(content, model, used, stream, pool.name);
+      } catch (e) {
+        lastErr = `workers-ai: ${e}`;
+        await stub.recordUsage(pool.id, 0, false, lastErr);
+        continue;
+      }
+    }
+
     let upstream;
     try {
       upstream = await fetch(joinUrl(pool.base_url, "/chat/completions"), {
@@ -142,6 +159,31 @@ export default app;
 
 function err(message) { return { error: { message, type: "commons_error" } }; }
 function joinUrl(base, path) { return base.replace(/\/+$/, "") + path; }
+
+function estimateTokens(messages, content) {
+  const chars = (messages || []).reduce((n, m) => n + String(m.content || "").length, 0) + content.length;
+  return Math.ceil(chars / 4); // rough fallback when the backend omits usage
+}
+
+// Wrap a plain completion string in OpenAI chat.completion shape (stream or not).
+function houseResponse(content, model, used, stream, poolName) {
+  const hdr = { "x-commons-pool": poolName };
+  if (!stream) {
+    return Response.json({
+      id: "cmpl-" + crypto.randomUUID(), object: "chat.completion", model,
+      choices: [{ index: 0, message: { role: "assistant", content }, finish_reason: "stop" }],
+      usage: { total_tokens: used },
+    }, { headers: hdr });
+  }
+  const id = "cmpl-" + crypto.randomUUID();
+  const sse = (o) => `data: ${JSON.stringify(o)}\n\n`;
+  const body = sse({ id, object: "chat.completion.chunk", model,
+      choices: [{ index: 0, delta: { role: "assistant", content }, finish_reason: null }] })
+    + sse({ id, object: "chat.completion.chunk", model,
+      choices: [{ index: 0, delta: {}, finish_reason: "stop" }], usage: { total_tokens: used } })
+    + "data: [DONE]\n\n";
+  return new Response(body, { headers: { ...hdr, "content-type": "text/event-stream; charset=utf-8" } });
+}
 
 // Pull usage.total_tokens out of a non-streaming JSON response.
 function extractUsage(text) {

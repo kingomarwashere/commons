@@ -17,6 +17,11 @@ drains, load shifts to the others; exhausted or failing pools are skipped automa
 - **Between pools** → gateway cascades (weighted by each pool's remaining donated tokens).
 - **Within a pool** → the model is distributed across the donor's boxes.
 
+**Live:** https://commons.theradicalparty.com — seeded with built-in "house" pools
+backed by the Worker's Workers AI binding (Llama 3.3 70B, Llama 4 Scout, Qwen 2.5 Coder),
+so the commons serves real inference out of the box. A donor with `base_url: "workers-ai://local"`
+is served through the AI binding instead of an HTTP hop.
+
 ## Gateway (Cloudflare)
 
 ```bash
